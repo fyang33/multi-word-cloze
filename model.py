@@ -82,7 +82,7 @@ class RNNLM(nn.Module):
         self.layers.append(Embedding(self.input_size, self.embedding_size))
         self.layers.append(RNN(self.embedding_size, self.hidden_size / num_dir, bi_dir=bi_directional))
         self.layers.append(Linear(self.hidden_size, self.input_size))
-        self.layers.append(Dropout())
+        # self.layers.append(Dropout())
         self.layers.append(LogSoftmax())
 
     def forward(self, input_batch):
