@@ -106,7 +106,7 @@ def main(options):
             sys_out_batch = sys_out_batch.masked_select(train_in_mask).view(-1, vocab_size)
             train_out_batch = train_out_batch.masked_select(train_out_mask)
             loss = criterion(sys_out_batch, train_out_batch)
-            if i % 5 == 0:
+            if i % 100 == 0:
                 logging.info("loss at batch {0}: {1}".format(i, loss.data[0]))
             logging.debug("loss at batch {0}: {1}".format(i, loss.data[0]))
             optimizer.zero_grad()
@@ -115,6 +115,7 @@ def main(options):
 
         # validation -- this is a crude esitmation because there might be some paddings at the end
         dev_loss = 0.0
+        rnnlm.eval()
         for batch_i in range(len(batched_dev_in)):
             dev_in_batch = Variable(batched_dev_in[batch_i], volatile=True)
             dev_out_batch = Variable(batched_dev_out[batch_i], volatile=True)
@@ -136,6 +137,7 @@ def main(options):
             dev_out_batch = dev_out_batch.masked_select(dev_out_mask)
             loss = criterion(sys_out_batch, dev_out_batch)
             dev_loss += loss
+        rnnlm.train()
         dev_avg_loss = dev_loss / len(batched_dev_in)
         logging.info(
             "Average loss value per instance is {0} at the end of epoch {1}".format(dev_avg_loss.data[0], epoch_i))

@@ -6,7 +6,7 @@ import logging
 import torch
 from torch import cuda
 from torch.autograd import Variable
-from model import BiRNNLM
+from model import RNNLM
 
 logging.basicConfig(
     format='%(asctime)s %(levelname)s: %(message)s',
@@ -49,7 +49,7 @@ def main(options):
 
     vocab_size = len(vocab)
 
-    rnnlm = BiRNNLM(vocab_size)
+    rnnlm = RNNLM(vocab_size,bi_directional=True)
     if use_cuda > 0:
         rnnlm.cuda()
     else:
@@ -88,6 +88,7 @@ def main(options):
 
         # validation -- this is a crude esitmation because there might be some paddings at the end
         dev_loss = 0.0
+        rnnlm.eval()
         for batch_i in range(len(batched_dev)):
             dev_batch = Variable(batched_dev[batch_i], volatile=True)
             dev_mask = Variable(batched_dev_mask[batch_i], volatile=True)
@@ -106,7 +107,7 @@ def main(options):
             loss = criterion(sys_out_batch, dev_out_batch)
             dev_loss += loss
         dev_avg_loss = dev_loss / len(batched_dev)
-
+        rnnlm.train()
         logging.info(
             "Average loss value per instance is {0} at the end of epoch {1}".format(dev_avg_loss.data[0], epoch_i))
 

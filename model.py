@@ -1,6 +1,6 @@
 import torch, math
 import torch.nn as nn
-from torch.autograd import Variable
+from torch.autograd import Variable, Function
 
 
 # python train.py --data_file data/hw4_data.bin --optimizer Adam -lr 1e-2 --batch_size 48  --model_file test.model
@@ -43,7 +43,8 @@ class RNN(nn.Module):
         self.hidden_size = out_size
         self.i2h = Linear(in_size, out_size)
         self.h2h = Linear(out_size, out_size)
-        self.activation = torch.sigmoid
+        # self.activation = torch.sigmoid
+        self.activation = torch.tanh
         self.bi_dir = bi_dir
         if bi_dir:
             self.i2h_back = Linear(in_size, out_size)
@@ -70,16 +71,18 @@ class RNN(nn.Module):
 
 
 class RNNLM(nn.Module):
-    def __init__(self, vocab_size):
+    def __init__(self, vocab_size, bi_directional=False):
         super(RNNLM, self).__init__()
         self.input_size = vocab_size
         self.embedding_size = 32
+        num_dir = 2 if bi_directional else 1
         self.hidden_size = 16
 
         self.layers = nn.ModuleList()
         self.layers.append(Embedding(self.input_size, self.embedding_size))
-        self.layers.append(RNN(self.embedding_size, self.hidden_size))
+        self.layers.append(RNN(self.embedding_size, self.hidden_size / num_dir, bi_dir=bi_directional))
         self.layers.append(Linear(self.hidden_size, self.input_size))
+        self.layers.append(Dropout())
         self.layers.append(LogSoftmax())
 
     def forward(self, input_batch):
@@ -92,66 +95,53 @@ class RNNLM(nn.Module):
             output = layer(output)
         return output
 
-
-class BiRNNLM(nn.Module):
-    def __init__(self, vocab_size):
-        self.train = True
-        super(BiRNNLM, self).__init__()
-        self.input_size = vocab_size
-        self.embedding_size = 32
-        self.hidden_size = 8
-
-        self.layers = nn.ModuleList()
-        self.layers.append(Embedding(self.input_size, self.embedding_size))
-        self.layers.append(RNN(self.embedding_size, self.hidden_size, bi_dir=True))
-        self.layers.append(Linear(2 * self.hidden_size, self.input_size))
-        self.layers.append(LogSoftmax())
-
-    def training(self):
-        """
-        Turn the module into training mode
-        """
-        self.train = True
-
-    def evaluate(self):
-        """
-        Turn the module into evaluate mode
-        """
-        self.train = False
-    def forward(self, input_batch):
-        """
-        input shape seq_len, batch_size
-        ouput shape sequence_length, batch_size, vocab_size
-        """
-        output = input_batch
+    def train(self, mode=True):
+        self.training = mode
         for layer in self.layers:
-            output = layer(output)
-        return output
+            layer.train(mode)
+
+    def eval(self):
+        self.train(False)
+
 
 class Dropout(nn.Module):
     """
     A dropout layer
     """
-    def __init__(self, p = 0.5):
+
+    def __init__(self, p=0.5):
         super(Dropout, self).__init__()
         if p < 0 or p > 1:
             raise ValueError("Dropout prob has to be between 0 and 1, but got {}".format(p))
-        self.p = p #self.p is the drop rate, if self.p is 0, then it's a identity layer
+        self.p = p  # self.p is the drop rate, if self.p is 0, then it's a identity layer
 
     def forward(self, input):
-        if self.train:
+        if self.training:
             p = self.p
-            self.mask = .bernoulli_(1 - p).div_(1 - p)
+            if p == 1:
+                mask = Variable(torch.zeros(input.size()).fill_(0))
+            else:
+                mask = Variable(torch.zeros(input.size()).bernoulli_(1 - p).div_(1 - p))
 
-            output = self.mask * input
+            return input * mask
         else:
-            output = input
-        # Need to take care of training mode and evaluation mode
-        return output
+            return input
 
-    def backward(self, input, gradOutput):
-        if self.train:
-            self._gradInput = self.mask * _gradOutput
+class DropoutFunc(Function):
+    @staticmethod
+    def forward(ctx, input, p, train):
+        ctx.train = train
+        if train:
+            ctx.mask = torch.zeros(input.size()).bernoulli_(1 - p).div_(1 - p)
+            if p == 1:
+                ctx.mask.fill_(0)
+            return ctx.mask * input
         else:
-            self._gradInput = _gradOutput
-        return self._gradInput
+            return input
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        if ctx.train:
+            return Variable(ctx.mask) * grad_output, None, None, None
+        else:
+            return grad_output, None, None, None
