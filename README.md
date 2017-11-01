@@ -1,3 +1,6 @@
+# Usage
+`python train_bi.py --data_file data/hw4_data.bin --optimizer Adam -lr 1e-2 --batch_size 48  --model_file test.model`
+
 # Part 1
 For RNNLM, we use `nn.ModuleList()` to represent a sequential NN.
 ```
@@ -17,14 +20,9 @@ For bi-directional RNNLM, we just need to modify the RNN layer.
 ```
 class RNNLM(nn.Module):
     def __init__(self, vocab_size, bi_directional=False):
-        super(RNNLM, self).__init__()
-        self.input_size = vocab_size
-        self.embedding_size = 32
-        num_dir = 2 if bi_directional else 1
-        self.hidden_size = 16
 
-        self.layers = nn.ModuleList()
+class RNN(nn.Module):
+    def __init__(self, in_size, out_size, bi_dir=False):
 ````
-
 # Part 3
 From this part, we implemented the dropout layer
